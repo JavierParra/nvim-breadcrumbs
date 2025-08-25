@@ -2,7 +2,7 @@ local M = {}
 
 local function load_processor(lang)
 	return function ()
-		return require('breadcrumbs.processors.'..lang)
+		return require('nvim-breadcrumbs.processors.'..lang)
 	end
 end
 

@@ -1,4 +1,4 @@
-local helpers = require('helpers')
+local helpers = require('nvim-breadcrumbs.helpers')
 local M = {}
 
 --- @alias crumbs { [1]: string, captures: table, hl_groups: string[]}[]
@@ -97,7 +97,7 @@ end
 M.setup = function(opts)
 	opts = opts or {}
 	if not opts.processors then
-		processors = require('breadcrumbs.processors').default_processors_loader
+		processors = require('nvim-breadcrumbs.processors').default_processors_loader
 	else
 		processors = opts.processors
 	end
@@ -194,7 +194,7 @@ M.build = function(opts)
 	end
 
 	if debug then
-		print(vim.inspect(all))
+		vim.notify(vim.inspect(all), vim.log.levels.DEBUG)
 	end
 
 	return crumbs
