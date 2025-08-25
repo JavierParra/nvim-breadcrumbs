@@ -1,12 +1,23 @@
 local helpers = require('nvim-breadcrumbs.helpers')
 local M = {}
-
 --- @alias crumbs { [1]: string, captures: table, hl_groups: string[]}[]
 --- @alias push_crumb fun(nodes: (TSNode | string)[])
 --- @alias processor fun(push_crumb: push_crumb, bfr: number): fun(node: TSNode)
 --- @alias crumb { [1]: string, captures: table, hl_groups: string[]}[]
 --- @alias processor_loader_map { [string]: nil | fun(): processor }
---- @alias opts { processors: processor_loader_map, debug: boolean | nil }
+
+--- @class opts
+--- @field processors processor_loader_map
+--- @field debug boolean | nil
+--- @field throttle_ms integer | nil
+--- @field max_depth integer | nil
+
+local _options = {
+	debug = false,
+	throttle_ms = 200,
+	max_depth = 50,
+	setup_called = false,
+}
 
 --- @type processor_loader_map
 local processors = {}
@@ -46,7 +57,16 @@ local ui_state = {
 	crumbs = nil
 }
 
-local module_debug = false
+local ensure_setup = function()
+	if not _options.setup_called then
+		M.setup()
+	end
+end
+
+local options = function()
+	ensure_setup()
+	return _options
+end
 
 local is_loaded = function()
 	return ui_state.win ~= nil or ui_state.augr ~= nil
@@ -103,8 +123,10 @@ M.setup = function(opts)
 	end
 
 	if opts.debug then
-		module_debug = true
+		_options.debug = true
 	end
+
+	_options.setup_called = true
 end
 
 --- @param opts { debug: boolean | nil, bfr: integer | nil } | nil
@@ -117,7 +139,7 @@ M.build = function(opts)
 	local i = 0
 	opts = opts or {}
 	local bfr = opts.bfr or 0
-	local debug = opts.debug or module_debug
+	local debug = opts.debug or options().debug
 	local lang = vim.api.nvim_get_option_value("filetype", { buf = bfr })
 
 	--- @type push_crumb
@@ -173,6 +195,9 @@ M.build = function(opts)
 	local processor = get_processor(lang)
 
 	if not processor then
+		if debug then
+			vim.notify('[nvim-breadcrumbs] missing processor for ' .. lang, vim.log.levels.DEBUG)
+		end
 		return nil
 	end
 
@@ -183,18 +208,22 @@ M.build = function(opts)
 			table.insert(all, node:type())
 		end
 
-		process_node(node)
+		local success = pcall(process_node, node)
+
+		if not success and options().debug then
+			vim.notify("[nvim-breadcrumbs] Processing node for lang=" .. lang .. " failed", vim.log.levels.WARN)
+		end
 
 		node = node:parent()
 		i = i + 1
-		if i == 500 then
-			vim.notify("Giving up after 500 parents")
+		if i == options().max_depth then
+			vim.notify("[nvim-breadcrumbs] Giving up after " .. options().max_depth .. " parents", vim.log.levels.WARN)
 			return
 		end
 	end
 
 	if debug then
-		vim.notify(vim.inspect(all), vim.log.levels.DEBUG)
+		vim.notify('[nvim-breadcrumbs] ' .. vim.inspect(all), vim.log.levels.DEBUG)
 	end
 
 	return crumbs
@@ -221,6 +250,8 @@ M.hide = function()
 end
 
 M.show = function(win)
+	ensure_setup()
+
 	if ui_state.augr then
 		vim.api.nvim_clear_autocmds({
 			group = ui_state.augr,
@@ -261,7 +292,7 @@ M.show = function(win)
 
 	local throttled_on_cursor_moved, cancel_cursor_moved = helpers.throttle(
 		on_cursor_moved,
-		200,
+		options().throttle_ms,
 		{
 			leading = false,
 			trailing = true
