@@ -68,14 +68,14 @@ local options = function()
 	return _options
 end
 
-local is_loaded = function()
+local is_showing = function()
 	return ui_state.win ~= nil or ui_state.augr ~= nil
 end
 
 --- @param crumbs { [1]: string, captures: table, hl_groups: string[]}[] | nil
 --- @param buf integer
 local function print_crumbs(crumbs, buf)
-	if not is_loaded() then
+	if not is_showing() then
 		return
 	end
 	vim.api.nvim_buf_set_lines(buf, 0, -1, false, {})
@@ -244,30 +244,20 @@ M.hide = function()
 		ui_state.cancel_timer()
 	end
 
-	for _, k in pairs(ui_state) do
+	for k in pairs(ui_state) do
 		ui_state[k] = nil
 	end
 end
 
-M.show = function(win)
+M.show = function()
 	ensure_setup()
 
-	if ui_state.augr then
-		vim.api.nvim_clear_autocmds({
-			group = ui_state.augr,
-		})
-	end
-	if ui_state.win then
-		vim.api.nvim_win_close(ui_state.win, true)
-		ui_state.win = nil
-		return
-	end
 	local crumbs = M.build()
 	if not crumbs then
 		return
 	end
 	local buf = vim.api.nvim_create_buf(false, true)
-	local win_width = vim.api.nvim_win_get_width(win or 0)
+	local win_width = vim.api.nvim_win_get_width(0)
 	local float_height = 1
 	local float_width = win_width - 1
 
@@ -326,6 +316,14 @@ M.show = function(win)
 	})
 
 	print_crumbs(crumbs, buf)
+end
+
+M.toggle = function()
+	if is_showing() then
+		return M.hide()
+	end
+
+	return M.show()
 end
 
 return M

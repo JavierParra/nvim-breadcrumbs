@@ -10,5 +10,10 @@ To show:
 
 To hide:
 ```lua
-	require('nvim-breadcrumbs').show()
+	require('nvim-breadcrumbs').hide()
+```
+
+To toggle:
+```lua
+	require('nvim-breadcrumbs').toggle()
 ```
