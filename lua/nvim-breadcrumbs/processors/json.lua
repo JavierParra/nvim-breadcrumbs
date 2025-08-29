@@ -12,7 +12,8 @@ local function json_processor(push_crumb)
 			if last_node then
 				for index, value in ipairs(node:named_children()) do
 					if value:equal(last_node) then
-						push_crumb({ "[" .. (index - 1) .. "]" })
+						local row, col = node:start()
+						push_crumb({ "[" .. (index - 1) .. "]" }, { row = row, col = col })
 						break
 					end
 				end

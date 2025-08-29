@@ -1,9 +1,10 @@
 local helpers = require('nvim-breadcrumbs.helpers')
 local M = {}
---- @alias crumbs { [1]: string, captures: table, hl_groups: string[]}[]
---- @alias push_crumb fun(nodes: (TSNode | string)[])
---- @alias processor fun(push_crumb: push_crumb, bfr: number): fun(node: TSNode)
+--- @alias pos { col: integer, row: integer }
 --- @alias crumb { [1]: string, captures: table, hl_groups: string[]}[]
+--- @alias crumbs { [1]: crumb, [2]: pos }[]
+--- @alias push_crumb fun(nodes: (TSNode | string)[], pos: pos | nil)
+--- @alias processor fun(push_crumb: push_crumb, bfr: number): fun(node: TSNode)
 --- @alias processor_loader_map { [string]: nil | fun(): processor }
 
 --- @class opts
@@ -74,7 +75,7 @@ local is_showing = function()
 	return ui_state.win ~= nil or ui_state.augr ~= nil
 end
 
---- @param crumbs { [1]: string, captures: table, hl_groups: string[]}[] | nil
+--- @param crumbs crumbs | nil
 --- @param buf integer
 local function print_crumbs(crumbs, buf)
 	if not is_showing() then
@@ -91,7 +92,8 @@ local function print_crumbs(crumbs, buf)
 	local ns = vim.api.nvim_create_namespace("jp_nvim_breadcrumbs")
 	local crumbs_length = #crumbs
 
-	for i, crumb in pairs(crumbs) do
+	for i, entry in pairs(crumbs) do
+		local crumb, pos = unpack(entry)
 		for _, part in pairs(crumb) do
 			local txt = part[1]
 			local len = vim.fn.strlen(txt)
@@ -147,11 +149,12 @@ M.setup = function(opts)
 end
 
 --- @param opts { debug: boolean | nil, bfr: integer | nil } | nil
---- @return crumb | nil
+--- @return crumbs | nil
 M.build = function(opts)
 	local node = vim.treesitter.get_node()
 	local last_node = nil
 	local all = {}
+	--- @type crumbs
 	local crumbs = {}
 	local i = 0
 	opts = opts or {}
@@ -160,7 +163,8 @@ M.build = function(opts)
 	local lang = vim.api.nvim_get_option_value("filetype", { buf = bfr })
 
 	--- @type push_crumb
-	local push_crumb = function(nodes)
+	local push_crumb = function(nodes, _pos)
+		local pos = _pos
 		--- @param node TSNode
 		--- @param bfr integer
 		--- @param res crumb | nil
@@ -197,6 +201,10 @@ M.build = function(opts)
 					hl_groups = {},
 				})
 			else
+				if not pos then
+					local row, col = node:start()
+					pos = { row = row, col = col }
+				end
 				local crbs = descend(node, bfr)
 				if crbs then
 					for _, crb in pairs(crbs) do
@@ -206,7 +214,7 @@ M.build = function(opts)
 			end
 		end
 
-		table.insert(crumbs, 1, res)
+		table.insert(crumbs, 1, { res, pos })
 	end
 
 	local processor = get_processor(lang)
@@ -301,7 +309,7 @@ M.show = function()
 		on_cursor_moved,
 		options().throttle_ms,
 		{
-			leading = false,
+			leading = true,
 			trailing = true
 		}
 	)
@@ -341,6 +349,28 @@ M.toggle = function()
 	end
 
 	return M.show()
+end
+
+M.parent = function()
+	local crumbs = ui_state.crumbs
+	if not crumbs or #crumbs == 0 then
+		if options().debug then
+			vim.notify('No crumbs in state', vim.log.levels.WARN)
+		end
+		return
+	end
+
+	local i = #crumbs
+	while i >= 1 do
+		local pos = crumbs[i][2]
+		i = i - 1
+		if pos then
+			vim.cmd("normal! m'")
+			vim.api.nvim_win_set_cursor(0, { pos.row + 1, pos.col })
+
+			return
+		end
+	end
 end
 
 return M

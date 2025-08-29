@@ -17,3 +17,8 @@ To toggle:
 ```lua
 	require('nvim-breadcrumbs').toggle()
 ```
+
+Jump to parent:
+```lua
+	require('nvim-breadcrumbs').parent()
+```
