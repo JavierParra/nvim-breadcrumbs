@@ -7,16 +7,18 @@ local M = {}
 --- @alias processor_loader_map { [string]: nil | fun(): processor }
 
 --- @class opts
---- @field processors processor_loader_map
+--- @field processors processor_loader_map | nil
 --- @field debug boolean | nil
 --- @field throttle_ms integer | nil
 --- @field max_depth integer | nil
+--- @field separator string | nil
 
 local _options = {
 	debug = false,
 	throttle_ms = 200,
 	max_depth = 50,
 	setup_called = false,
+	separator = "  ",
 }
 
 --- @type processor_loader_map
@@ -104,7 +106,8 @@ local function print_crumbs(crumbs, buf)
 			col = col + len
 		end
 
-		local sep = "  "
+		--- @type string
+		local sep = options().separator
 		if i < crumbs_length then
 			vim.api.nvim_buf_set_text(buf, 0, col, 0, col, { sep })
 
@@ -113,17 +116,31 @@ local function print_crumbs(crumbs, buf)
 	end
 end
 
---- @param opts opts | nil
+--- @class setup_opts : opts
+--- @field disable_default_processors boolean | nil
+
+--- @param opts setup_opts | nil
 M.setup = function(opts)
 	opts = opts or {}
-	if not opts.processors then
+	--- @type processor_loader_map
+	processors = {}
+
+	if not opts.disable_default_processors then
 		processors = require('nvim-breadcrumbs.processors').default_processors_loader
-	else
-		processors = opts.processors
+	end
+
+	if opts.processors then
+		for k, v in pairs(opts.processors) do
+			processors[k] = v
+		end
 	end
 
 	if opts.debug then
 		_options.debug = true
+	end
+
+	if opts.separator then
+		_options.separator = opts.separator
 	end
 
 	_options.setup_called = true
